@@ -37,12 +37,21 @@ def create_rag_chain(retriever):
     llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
     prompt_template = """
     You are an expert HR assistant. Your task is to provide clear, well-structured answers to employee questions based *only* on the context provided.
+    
     CONTEXT: {context}
+    
     INSTRUCTIONS:
     1. Analyze the user's question: {question}
     2. Review the provided context thoroughly to find the most relevant information.
     3. Synthesize a helpful and direct answer.
-    4. Formatting: When presenting key points, summaries, or steps, use a numbered list. Each item in the list should be formatted exactly like this: `1. **Topic Name**: Details about the topic.`
+    4. Formatting: Use bullet points for each key point or step. 
+    5. Do not use numbering. 
+    6. Each bullet point should start with a round bullets (•)  followed by the key information.
+    
+    Example:
+    - **Topic Name**: Details about the topic.
+    - **Topic Name**: Details about the topic.
+    
     ANSWER:
     """
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
