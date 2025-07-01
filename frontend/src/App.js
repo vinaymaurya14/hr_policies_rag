@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // --- STYLES OBJECT (LIGHT THEME) ---
 const styles = {
@@ -13,8 +13,19 @@ const styles = {
   inputLabel: { display: 'flex', alignItems: 'center', fontWeight: '500', color: '#374151', marginBottom: '0.75rem' },
   inputLabelIcon: { height: '1.25rem', width: '1.25rem', marginRight: '0.5rem', color: '#4f46e5' },
   inputWrapper: { position: 'relative', width: '100%' },
-  input: { width: '100%', padding: '1rem 8rem 1rem 1.5rem', fontSize: '1.1rem', border: '1px solid #d1d5db', borderRadius: '0.75rem', boxSizing: 'border-box', transition: 'box-shadow 0.3s, border-color 0.3s' },
-  submitButton: { position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'linear-gradient(to right, #4f46e5, #6366f1)', color: 'white', border: 'none', padding: '0.75rem 1.25rem', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', boxShadow: '0 4px 6px rgba(79, 70, 229, 0.2)', transition: 'transform 0.2s, box-shadow 0.2s' },
+  textarea: { 
+    width: '100%', 
+    padding: '1rem 8rem 1rem 1.5rem', 
+    fontSize: '1.1rem', 
+    border: '1px solid #d1d5db', 
+    borderRadius: '0.75rem', 
+    boxSizing: 'border-box', 
+    transition: 'box-shadow 0.3s, border-color 0.3s',
+    resize: 'none',
+    overflow: 'hidden',
+    minHeight: '58px', // Corresponds to padding and line height
+  },
+  submitButton: { position: 'absolute', right: '0.5rem', top: '0.4rem', background: 'linear-gradient(to right, #4f46e5, #6366f1)', color: 'white', border: 'none', padding: '0.75rem 1.25rem', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', boxShadow: '0 4px 6px rgba(79, 70, 229, 0.2)', transition: 'transform 0.2s, box-shadow 0.2s' },
   submitButtonDisabled: { opacity: 0.7, cursor: 'not-allowed', boxShadow: 'none' },
   fileInputContainer: { marginTop: '1rem', border: '2px dashed #d1d5db', borderRadius: '0.75rem', padding: '1rem', textAlign: 'center' },
   fileInputLabel: { cursor: 'pointer', color: '#4f46e5', fontWeight: '500' },
@@ -26,18 +37,8 @@ const styles = {
   resultsSection: { marginTop: '2.5rem' },
   faqSection: { marginTop: '1.5rem', padding: '1.5rem', backgroundColor: 'rgba(255, 255, 255, 0.5)', borderRadius: '1rem' },
   faqTitle: { fontSize: '1.25rem', fontWeight: '600', color: '#2c3e50', marginBottom: '1rem', textAlign: 'center' },
-  faqGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  faqButton: {
-    backgroundColor: '#ffffff',
-    border: '1px solid #e2e8f0',
-    padding: '0.75rem',
-    borderRadius: '0.5rem',
-    textAlign: 'left',
-    cursor: 'pointer',
-    fontSize: '0.95rem',
-    color: '#374151',
-    transition: 'transform 0.2s, box-shadow 0.2s',
-  },
+  faqGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' },
+  faqButton: { backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '0.75rem', borderRadius: '0.5rem', textAlign: 'left', cursor: 'pointer', fontSize: '0.95rem', color: '#374151', transition: 'transform 0.2s, box-shadow 0.2s', height: '100%' },
   answerCard: { backgroundColor: '#ffffff', padding: '2rem', borderRadius: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', animation: 'fadeIn 0.5s ease-out' },
   answerCardH2: { fontSize: '1.75rem', fontWeight: '700', color: '#2c3e50', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center' },
   answerText: { fontSize: '1.05rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', color: '#34495e' },
@@ -70,7 +71,7 @@ const SourceCard = ({ title, score, content }) => (
 );
 
 const SourcesAccordion = ({ sources, uploadedFileName }) => {
-  const [isOpen, setIsOpen] = useState(true); // Default to open
+  const [isOpen, setIsOpen] = useState(true);
   if (!sources || sources.length === 0) return null;
   return (
     <div style={styles.sourcesContainer}>
@@ -129,26 +130,44 @@ const FormattedAnswer = ({ text }) => {
   return <div style={styles.answerText}>{renderFormattedText(text)}</div>;
 };
 
-// --- NEW FAQ COMPONENT ---
 const FaqSection = ({ onQuestionClick }) => {
     const questions = [
-        "How do I apply for leave?",
-        "What is the process for getting a personal loan?",
-        "What is the policy on using company assets?",
-        "What should I do if I lose my ID card?"
+        "Can you help me plan a 10-day vacation in the next 3 months using my earned leaves?",
+        "What’s the process and documentation needed for hospital admission of my spouse?",
+        "Am I eligible for permanent WFH or hybrid work? How do I apply?",
+        "How much maternity or paternity leave can I take, and what’s the procedure?",
+        "What types of leaves do I have, and how many days are left for each?",
+        "Can I get a copy of my latest salary slip or Form 16?",
+        "What’s the process for promotion or internal job application (IJP)?",
+        "How do I report workplace harassment or mental health issues confidentially?",
+        "Can I take a sabbatical or unpaid leave? What are the conditions?",
+        "I want to resign. What’s my notice period and exit formalities?",
     ];
 
     return (
         <div style={styles.faqSection}>
-            <h3 style={styles.faqTitle}>Frequently Asked Questions</h3>
+            <h3 style={styles.faqTitle}>
+              Frequently Asked Questions
+              <span style={{
+                backgroundColor: '#4f46e5',
+                color: 'white',
+                padding: '0.2rem 0.5rem',
+                borderRadius: '0.25rem',
+                marginLeft: '0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: '600'
+              }}>
+                FAQ
+              </span>
+            </h3>
             <div style={styles.faqGrid}>
                 {questions.map((q, i) => (
                     <button 
                         key={i} 
                         style={styles.faqButton}
                         onClick={() => onQuestionClick(q)}
-                        onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                        onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                        onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                        onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
                     >
                         {q}
                     </button>
@@ -157,7 +176,6 @@ const FaqSection = ({ onQuestionClick }) => {
         </div>
     );
 };
-
 
 export default function App() {
   const [query, setQuery] = useState('');
@@ -168,9 +186,15 @@ export default function App() {
   const [sources, setSources] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const fileInputRef = React.useRef(null);
-  const formRef = React.useRef(null); // Ref for the form
+  const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
+  const handleAutoResize = (e) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
+  
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
@@ -207,7 +231,7 @@ export default function App() {
   };
 
   const handleSubmit = async (e) => {
-    if(e) e.preventDefault(); // Prevent default form submission if event is passed
+    if(e) e.preventDefault();
     if (!query.trim()) return;
 
     setIsLoading(true);
@@ -230,25 +254,17 @@ export default function App() {
     }
   };
 
-  // New function to handle FAQ clicks
   const handleFaqClick = (question) => {
     setQuery(question);
+    // Focus and trigger resize after setting the state
+    setTimeout(() => {
+        if(textareaRef.current) {
+            textareaRef.current.focus();
+            const event = new Event('input', { bubbles: true });
+            textareaRef.current.dispatchEvent(event);
+        }
+    }, 0);
   };
-
-  // Use useEffect to submit the form when query is set by FAQ click
-  useEffect(() => {
-    // Check if the query was set by a click (and not by typing)
-    // A simple way is to check if the query is one of the FAQ questions
-    const faqQuestions = [
-        "How do I apply for leave?",
-        "What is the process for getting a personal loan?",
-        "What is the policy on using company assets?",
-        "What should I do if I lose my ID card?"
-    ];
-    if (faqQuestions.includes(query) && !isLoading) {
-        handleSubmit();
-    }
-  }, [query]);
 
   const buttonStyle = isLoading ? { ...styles.submitButton, ...styles.submitButtonDisabled } : styles.submitButton;
 
@@ -257,16 +273,26 @@ export default function App() {
       <style>{keyframesStyle}</style>
       <div style={styles.container}>
         <header style={styles.header}>
-          <h1 style={styles.headerH1}><svg style={styles.headerIcon} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>AI-Powered HR Assistant</h1>
+          <h1 style={styles.headerH1}><svg style={styles.headerIcon} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>SmartHR</h1>
           <p style={styles.headerP}>Your instant and reliable guide to company policies.</p>
         </header>
 
         <div style={styles.searchBox}>
-          <form onSubmit={handleSubmit} ref={formRef}>
+          <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '1rem' }}>
               <label style={styles.inputLabel} htmlFor="question-input"><svg style={styles.inputLabelIcon} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Ask a question</label>
               <div style={styles.inputWrapper}>
-                <input id="question-input" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g., How do I apply for leave?" style={styles.input} disabled={isLoading} />
+                <textarea
+                  id="question-input"
+                  ref={textareaRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onInput={handleAutoResize}
+                  placeholder="e.g., How do I apply for leave?"
+                  style={styles.textarea}
+                  disabled={isLoading}
+                  rows={1}
+                />
                 <button type="submit" style={buttonStyle} disabled={isLoading}>{isLoading ? <Spinner /> : null}{isLoading ? 'Asking...' : 'Ask AI'}</button>
               </div>
             </div>
