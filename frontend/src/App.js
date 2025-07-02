@@ -1,331 +1,478 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { FileText, Upload, Send, Loader2, Sparkles, MessageSquare, FileUp, X } from 'lucide-react';
 
-// --- STYLES OBJECT (LIGHT THEME) ---
-const styles = {
-  appContainer: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '2rem', color: '#333' },
-  container: { maxWidth: '800px', margin: '0 auto' },
-  header: { textAlign: 'center', marginBottom: '2.5rem' },
-  headerH1: { fontSize: '2.8rem', fontWeight: 'bold', color: '#2c3e50', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  headerIcon: { height: '2.8rem', width: '2.8rem', marginRight: '1rem', color: '#4f46e5' },
-  headerP: { fontSize: '1.1rem', color: '#5a677d', marginTop: '0.5rem' },
-  searchBox: { backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', border: '1px solid rgba(0, 0, 0, 0.05)' },
-  form: { position: 'relative' },
-  inputLabel: { display: 'flex', alignItems: 'center', fontWeight: '500', color: '#374151', marginBottom: '0.75rem' },
-  inputLabelIcon: { height: '1.25rem', width: '1.25rem', marginRight: '0.5rem', color: '#4f46e5' },
-  inputWrapper: { position: 'relative', width: '100%' },
-  textarea: { 
-    width: '100%', 
-    padding: '1rem 8rem 1rem 1.5rem', 
-    fontSize: '1.1rem', 
-    border: '1px solid #d1d5db', 
-    borderRadius: '0.75rem', 
-    boxSizing: 'border-box', 
-    transition: 'box-shadow 0.3s, border-color 0.3s',
-    resize: 'none',
-    overflow: 'hidden',
-    minHeight: '58px', // Corresponds to padding and line height
-  },
-  submitButton: { position: 'absolute', right: '0.5rem', top: '0.4rem', background: 'linear-gradient(to right, #4f46e5, #6366f1)', color: 'white', border: 'none', padding: '0.75rem 1.25rem', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', boxShadow: '0 4px 6px rgba(79, 70, 229, 0.2)', transition: 'transform 0.2s, box-shadow 0.2s' },
-  submitButtonDisabled: { opacity: 0.7, cursor: 'not-allowed', boxShadow: 'none' },
-  fileInputContainer: { marginTop: '1rem', border: '2px dashed #d1d5db', borderRadius: '0.75rem', padding: '1rem', textAlign: 'center' },
-  fileInputLabel: { cursor: 'pointer', color: '#4f46e5', fontWeight: '500' },
-  fileName: { marginLeft: '1rem', fontStyle: 'italic', color: '#374151' },
-  uploadStatusContainer: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '0.5rem' },
-  uploadStatus: { fontSize: '0.9rem', fontWeight: '500' },
-  clearButton: { marginLeft: '1rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '0.5rem', padding: '0.25rem 0.75rem', fontSize: '0.8rem', cursor: 'pointer' },
-  spinner: { width: '1rem', height: '1rem', border: '2px solid rgba(255,255,255,0.3)', borderLeftColor: '#ffffff', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite', marginRight: '0.5rem' },
-  resultsSection: { marginTop: '2.5rem' },
-  faqSection: { marginTop: '1.5rem', padding: '1.5rem', backgroundColor: 'rgba(255, 255, 255, 0.5)', borderRadius: '1rem' },
-  faqTitle: { fontSize: '1.25rem', fontWeight: '600', color: '#2c3e50', marginBottom: '1rem', textAlign: 'center' },
-  faqGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' },
-  faqButton: { backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '0.75rem', borderRadius: '0.5rem', textAlign: 'left', cursor: 'pointer', fontSize: '0.95rem', color: '#374151', transition: 'transform 0.2s, box-shadow 0.2s', height: '100%' },
-  answerCard: { backgroundColor: '#ffffff', padding: '2rem', borderRadius: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', animation: 'fadeIn 0.5s ease-out' },
-  answerCardH2: { fontSize: '1.75rem', fontWeight: '700', color: '#2c3e50', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center' },
-  answerText: { fontSize: '1.05rem', lineHeight: '1.7', whiteSpace: 'pre-wrap', color: '#34495e' },
-  sourcesContainer: { marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #eef2f7' },
-  sourcesHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' },
-  sourcesContainerH3: { fontSize: '1.25rem', fontWeight: '600', color: '#1a202c', margin: '0' },
-  accordionToggle: { fontSize: '1.5rem', color: '#4a5568', transition: 'transform 0.3s ease' },
-  accordionToggleOpen: { transform: 'rotate(180deg)' },
-  sourcesContent: { marginTop: '1rem' },
-  sourceCard: { backgroundColor: '#f8f9fa', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '0.75rem', marginTop: '0.75rem' },
-  sourceCardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' },
-  sourceCardTitle: { margin: '0', fontSize: '1rem', fontWeight: '600' },
-  sourceCardScore: { fontSize: '0.9rem', fontWeight: '500', color: '#4f46e5' },
-  sourceCardP: { margin: '0', fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace", fontSize: '0.875rem', whiteSpace: 'pre-wrap', wordWrap: 'break-word', backgroundColor: '#ffffff', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' },
-  errorBox: { backgroundColor: '#fee2e2', borderLeft: '4px solid #ef4444', color: '#991b1b', padding: '1rem', borderRadius: '0.5rem' },
-};
+// PDF.js worker setup
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-const keyframesStyle = `@keyframes spin { to { transform: rotate(360deg); } } @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`;
+// Modern Gradient Background Component
+const GradientBackground = () => (
+  <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-purple-50 opacity-60" />
+);
 
-const Spinner = () => <div style={styles.spinner}></div>;
-
-const SourceCard = ({ title, score, content }) => (
-  <div style={styles.sourceCard}>
-    <div style={styles.sourceCardHeader}>
-      <h4 style={styles.sourceCardTitle}>{title}</h4>
-      <span style={styles.sourceCardScore}>Relevance: {(score * 100).toFixed(1)}%</span>
+// Enhanced Logo Component
+const SmartHRLogo = () => (
+  <div className="flex items-center gap-3">
+    <div className="relative">
+      <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+        <Sparkles className="w-6 h-6 text-white" />
+      </div>
+      <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
     </div>
-    <p style={styles.sourceCardP}>{content}</p>
+    <div>
+      <h1 className="text-2xl font-bold text-white tracking-tight">SmartHR AI</h1>
+      <div className="text-indigo-200 text-xs font-medium">Intelligent HR Assistant</div>
+    </div>
   </div>
 );
 
-const SourcesAccordion = ({ sources, uploadedFileName }) => {
-  const [isOpen, setIsOpen] = useState(true);
-  if (!sources || sources.length === 0) return null;
+// FAQ Section Component
+const FaqSection = ({ onQuestionClick, questions, title }) => {
+  if (questions.length === 0) return null;
+
   return (
-    <div style={styles.sourcesContainer}>
-      <div style={styles.sourcesHeader} onClick={() => setIsOpen(!isOpen)}>
-        <h3 style={styles.sourcesContainerH3}>Sources</h3>
-        <span style={{ ...styles.accordionToggle, ...(isOpen && styles.accordionToggleOpen) }}>▼</span>
+    <div className="mt-8 p-6 bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <MessageSquare className="w-5 h-5 text-indigo-600" />
+        <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
       </div>
-      {isOpen && (
-        <div style={styles.sourcesContent}>
-          {sources.map((src, i) => (
-            <SourceCard 
-              key={i} 
-              title={`Source ${i + 1}: ${uploadedFileName || src.source}`} 
-              score={src.score}
-              content={src.content} 
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-3">
+        {questions.map((q, i) => (
+          <button
+            key={i}
+            onClick={() => onQuestionClick(q)}
+            className="group text-left p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all duration-300 hover:scale-[1.02]"
+          >
+            <div className="text-slate-700 font-medium leading-relaxed group-hover:text-indigo-700 transition-colors">
+              {q}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
 
-const FormattedAnswer = ({ text }) => {
-  const renderFormattedText = (inputText) => {
-    const cleanText = inputText.replace(/\(Source: .*\.pdf\)/g, '').trim();
-    const lines = cleanText.split('\n').filter(line => line.trim() !== '');
-    const elements = [];
-    let listItems = [];
-    const flushList = () => {
-      if (listItems.length > 0) {
-        elements.push(<ol key={`list-${elements.length}`} style={{ paddingLeft: '20px', listStyle: 'decimal', marginBottom: '1rem' }}>{listItems}</ol>);
-        listItems = [];
-      }
-    };
-    lines.forEach((line, index) => {
-      const renderBold = (text) => {
-        const parts = text.split(/(\*\*.*?\*\*)/g).filter(part => part);
-        return parts.map((part, i) => {
-          if (part.startsWith('**') && part.endsWith('**')) { return <strong key={i}>{part.slice(2, -2)}</strong>; }
-          return part;
-        });
-      };
-      const numberedListMatch = line.match(/^(\d+)\.\s+(.*)/);
-      if (numberedListMatch) {
-        const content = numberedListMatch[2];
-        listItems.push(<li key={`item-${index}`} style={{ marginBottom: '0.75rem' }}>{renderBold(content)}</li>);
-      } else {
-        flushList();
-        elements.push(<p key={`p-${index}`} style={{ marginBottom: '1rem' }}>{renderBold(line)}</p>);
-      }
-    });
-    flushList();
-    return <div>{elements}</div>;
-  };
-  return <div style={styles.answerText}>{renderFormattedText(text)}</div>;
-};
-
-const FaqSection = ({ onQuestionClick }) => {
-    const questions = [
-        "Can you help me plan a 10-day vacation in the next 3 months using my earned leaves?",
-        "What’s the process and documentation needed for hospital admission of my spouse?",
-        "Am I eligible for permanent WFH or hybrid work? How do I apply?",
-        "How much maternity or paternity leave can I take, and what’s the procedure?",
-        "What types of leaves do I have, and how many days are left for each?",
-        "Can I get a copy of my latest salary slip or Form 16?",
-        "What’s the process for promotion or internal job application (IJP)?",
-        "How do I report workplace harassment or mental health issues confidentially?",
-        "Can I take a sabbatical or unpaid leave? What are the conditions?",
-        "I want to resign. What’s my notice period and exit formalities?",
-    ];
-
-    return (
-        <div style={styles.faqSection}>
-            <h3 style={styles.faqTitle}>
-              Frequently Asked Questions
-              <span style={{
-                backgroundColor: '#4f46e5',
-                color: 'white',
-                padding: '0.2rem 0.5rem',
-                borderRadius: '0.25rem',
-                marginLeft: '0.5rem',
-                fontSize: '0.75rem',
-                fontWeight: '600'
-              }}>
-                FAQ
-              </span>
-            </h3>
-            <div style={styles.faqGrid}>
-                {questions.map((q, i) => (
-                    <button 
-                        key={i} 
-                        style={styles.faqButton}
-                        onClick={() => onQuestionClick(q)}
-                        onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
-                        onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
-                    >
-                        {q}
-                    </button>
-                ))}
+// Enhanced Chat Bubble Component
+const ChatBubble = ({ item, isSelected, onClick }) => {
+  const isQuestion = item.type === 'question';
+  
+  return (
+    <div className={`flex mb-6 ${isQuestion ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[85%] ${isQuestion ? 'cursor-pointer' : ''} transition-all duration-300`}
+        onClick={onClick}
+      >
+        {isQuestion ? (
+          <div
+            className={`
+              px-6 py-4 rounded-2xl rounded-br-md bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg
+              ${isSelected ? 'ring-4 ring-indigo-300 ring-opacity-50 scale-[1.02]' : ''}
+              hover:shadow-xl transition-all duration-300
+            `}
+          >
+            <div className="font-medium leading-relaxed whitespace-pre-wrap">{item.text}</div>
+          </div>
+        ) : (
+          <div className="px-6 py-4 bg-white rounded-2xl rounded-bl-md shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300">
+            <div className="prose prose-slate max-w-none">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  ul: ({ node, ...props }) => (
+                    <ul className="list-disc list-outside pl-5 mt-3 space-y-2" {...props} />
+                  ),
+                  li: ({ node, ...props }) => (
+                    <li className="text-slate-700 leading-relaxed" {...props} />
+                  ),
+                  strong: ({ node, ...props }) => (
+                    <strong className="text-slate-900 font-semibold" {...props} />
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p className="text-slate-700 leading-relaxed mb-3 last:mb-0" {...props} />
+                  ),
+                }}
+              >
+                {item.text}
+              </ReactMarkdown>
             </div>
-        </div>
-    );
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
+
+// Loading Animation Component
+const LoadingBubble = () => (
+  <div className="flex justify-start mb-6">
+    <div className="px-6 py-4 bg-white rounded-2xl rounded-bl-md shadow-lg border border-slate-200">
+      <div className="flex items-center gap-3">
+        <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+        <div className="text-slate-600 font-medium">Thinking...</div>
+      </div>
+    </div>
+  </div>
+);
 
 export default function App() {
   const [query, setQuery] = useState('');
-  const [file, setFile] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState('idle');
-  const [answer, setAnswer] = useState('');
-  const [sources, setSources] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const fileInputRef = useRef(null);
-  const textareaRef = useRef(null);
+  const [mode, setMode] = useState('main');
 
-  const handleAutoResize = (e) => {
-    const textarea = e.target;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  };
-  
+  const [mainChat, setMainChat] = useState({
+    history: [],
+    sessionId: null,
+    activePdf: null,
+    pdfFileName: '',
+    highlightedPages: [],
+    selectedQuestionIndex: null,
+  });
+
+  const [customChat, setCustomChat] = useState({
+    history: [],
+    sessionId: null,
+    activePdf: null,
+    pdfFileName: '',
+    faqs: [],
+    highlightedPages: [],
+    selectedQuestionIndex: null,
+  });
+
+  const [numPages, setNumPages] = useState(null);
+  const fileInputRef = useRef(null);
+  const chatContainerRef = useRef(null);
+
+  const isCustomMode = mode === 'custom';
+  const currentChat = isCustomMode ? customChat : mainChat;
+  const setCurrentChat = isCustomMode ? setCustomChat : setMainChat;
+
+  const staticFaqs = [
+    "What types of leaves do I have, and how many days are left?",
+    "How do I report workplace harassment confidentially?",
+    "Am I eligible for permanent WFH? How do I apply?",
+    "How much maternity or paternity leave can I take?",
+  ];
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [currentChat.history, isLoading]);
+
   const handleFileChange = async (e) => {
-    const selectedFile = e.target.files[0];
+    const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
-    setFile(selectedFile);
-    setUploadStatus('uploading');
+
+    setIsLoading(true);
     setError('');
+    setCustomChat({
+      history: [],
+      faqs: [],
+      sessionId: null,
+      activePdf: null,
+      pdfFileName: '',
+      highlightedPages: [],
+      selectedQuestionIndex: null,
+    });
+
     const newSessionId = crypto.randomUUID();
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('session_id', newSessionId);
+
     try {
-      const response = await fetch('http://127.0.0.1:8000/process-file', { method: 'POST', body: formData });
-      if (!response.ok) { const errData = await response.json(); throw new Error(errData.detail || 'Failed to process file.'); }
-      const data = await response.json();
-      setSessionId(data.session_id);
-      setUploadStatus('success');
-    } catch (err) {
-      setError(err.message);
-      setUploadStatus('error');
-      setFile(null);
-    }
-  };
+      await fetch('http://127.0.0.1:8000/process-file', {
+        method: 'POST',
+        body: formData,
+      });
 
-  const handleReset = () => {
-    setFile(null);
-    setSessionId(null);
-    setUploadStatus('idle');
-    setAnswer('');
-    setSources([]);
-    setError('');
-    if(fileInputRef.current) {
-        fileInputRef.current.value = "";
-    }
-  };
+      const faqFormData = new FormData();
+      faqFormData.append('session_id', newSessionId);
+      const faqResponse = await fetch('http://127.0.0.1:8000/generate-faqs', {
+        method: 'POST',
+        body: faqFormData,
+      });
+      const faqData = await faqResponse.json();
 
-  const handleSubmit = async (e) => {
-    if(e) e.preventDefault();
-    if (!query.trim()) return;
-
-    setIsLoading(true);
-    setAnswer('');
-    setSources([]);
-    setError('');
-    const formData = new FormData();
-    formData.append('question', query);
-    if (sessionId) { formData.append('session_id', sessionId); }
-    try {
-      const response = await fetch('http://127.0.0.1:8000/ask', { method: 'POST', body: formData });
-      if (!response.ok) { const errData = await response.json(); throw new Error(errData.detail || `API Error`); }
-      const data = await response.json();
-      setAnswer(data.answer);
-      setSources(data.sources);
+      setCustomChat(prev => ({
+        ...prev,
+        sessionId: newSessionId,
+        activePdf: URL.createObjectURL(selectedFile),
+        pdfFileName: selectedFile.name,
+        faqs: faqData.faqs || [],
+      }));
+      setMode('custom');
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
-  const handleFaqClick = (question) => {
-    setQuery(question);
-    // Focus and trigger resize after setting the state
-    setTimeout(() => {
-        if(textareaRef.current) {
-            textareaRef.current.focus();
-            const event = new Event('input', { bubbles: true });
-            textareaRef.current.dispatchEvent(event);
-        }
-    }, 0);
+  const endCustomChat = () => {
+    setMode('main');
+    setCustomChat({
+      history: [],
+      faqs: [],
+      sessionId: null,
+      activePdf: null,
+      pdfFileName: '',
+      highlightedPages: [],
+      selectedQuestionIndex: null,
+    });
   };
 
-  const buttonStyle = isLoading ? { ...styles.submitButton, ...styles.submitButtonDisabled } : styles.submitButton;
+  const performQuery = async (questionToAsk) => {
+    if (!questionToAsk.trim()) return;
+    setIsLoading(true);
+    setError('');
+
+    const newQuestionIndex = currentChat.history.length;
+    const newHistoryWithQuestion = [
+      ...currentChat.history,
+      { type: 'question', text: questionToAsk },
+    ];
+    setCurrentChat(prev => ({
+      ...prev,
+      history: newHistoryWithQuestion,
+      selectedQuestionIndex: newQuestionIndex,
+    }));
+
+    const formData = new FormData();
+    formData.append('question', questionToAsk);
+    if (currentChat.sessionId) formData.append('session_id', currentChat.sessionId);
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/ask', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'API Error');
+      }
+      const data = await response.json();
+
+      const pages = [...new Set(data.sources.map((s) => s.page))];
+      const sourceFile = data.sources.length > 0 ? data.sources[0].source : currentChat.pdfFileName;
+      const answerItem = {
+        type: 'answer',
+        text: data.answer,
+        pages: pages,
+        sourceFile: sourceFile,
+      };
+
+      setCurrentChat(prev => ({
+        ...prev,
+        history: [...prev.history, answerItem],
+        highlightedPages: pages,
+        pdfFileName: sourceFile,
+        activePdf:
+          sourceFile && sourceFile !== prev.pdfFileName && !isCustomMode
+            ? `http://127.0.0.1:8000/static/${sourceFile}`
+            : prev.activePdf,
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+      setQuery('');
+    }
+  };
+
+  const handleHistoryClick = (index) => {
+    if (currentChat.history[index]?.type === 'question') {
+      const answerItem = currentChat.history[index + 1];
+      if (answerItem && answerItem.type === 'answer') {
+        const isUploadedFile =
+          answerItem.sourceFile === currentChat.pdfFileName &&
+          currentChat.activePdf?.startsWith('blob:');
+        setCurrentChat(prev => ({
+          ...prev,
+          selectedQuestionIndex: index,
+          highlightedPages: answerItem.pages || [],
+          pdfFileName: answerItem.sourceFile || prev.pdfFileName,
+          activePdf:
+            answerItem.sourceFile &&
+            answerItem.sourceFile !== prev.pdfFileName &&
+            !isUploadedFile
+              ? `http://127.0.0.1:8000/static/${answerItem.sourceFile}`
+              : prev.activePdf,
+        }));
+      }
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await performQuery(query);
+  };
+
+  const handleFaqClick = async (question) => {
+    setQuery(question);
+    await performQuery(question);
+  };
 
   return (
-    <div style={styles.appContainer}>
-      <style>{keyframesStyle}</style>
-      <div style={styles.container}>
-        <header style={styles.header}>
-          <h1 style={styles.headerH1}><svg style={styles.headerIcon} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>SmartHR</h1>
-          <p style={styles.headerP}>Your instant and reliable guide to company policies.</p>
-        </header>
+    <div className="h-screen flex flex-col bg-slate-50 font-inter">
+      {/* Enhanced Header */}
+      <header className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 shadow-2xl border-b border-indigo-500/20">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/90 via-purple-600/90 to-indigo-700/90" />
+        <div className="relative px-8 py-6 flex justify-between items-center">
+          <SmartHRLogo />
+          {isCustomMode && (
+            <button
+              onClick={endCustomChat}
+              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all duration-300 hover:scale-105 shadow-lg"
+            >
+              <X className="w-4 h-4" />
+              <span className="font-medium">End Custom Chat</span>
+            </button>
+          )}
+        </div>
+        {isCustomMode && (
+          <div className="px-8 pb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-100 rounded-full text-sm font-medium border border-emerald-400/30">
+              <FileText className="w-4 h-4" />
+              Custom Document Mode
+            </div>
+          </div>
+        )}
+      </header>
 
-        <div style={styles.searchBox}>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={styles.inputLabel} htmlFor="question-input"><svg style={styles.inputLabelIcon} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Ask a question</label>
-              <div style={styles.inputWrapper}>
+      {/* Main Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* PDF Panel */}
+        <div className="flex-1 bg-gradient-to-br from-slate-100 to-slate-200 overflow-y-auto relative">
+          <GradientBackground />
+          <div className="relative z-10 p-8">
+            {currentChat.activePdf ? (
+              <Document
+                file={currentChat.activePdf}
+                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                onLoadError={(err) => setError(`Failed to load PDF: ${err.message}`)}
+                className="flex flex-col items-center gap-6"
+              >
+                {Array.from(new Array(numPages || 0), (el, index) => (
+                  <div
+                    key={`page_${index + 1}`}
+                    className={`transition-all duration-500 ${
+                      currentChat.highlightedPages.includes(index + 1)
+                        ? 'ring-4 ring-indigo-400 ring-opacity-60 shadow-2xl scale-105'
+                        : 'shadow-lg hover:shadow-xl'
+                    } rounded-xl overflow-hidden bg-white`}
+                  >
+                    <Page pageNumber={index + 1} className="rounded-xl" />
+                  </div>
+                ))}
+              </Document>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+                <div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-3xl flex items-center justify-center shadow-lg">
+                  <FileText className="w-16 h-16 text-indigo-400" />
+                </div>
+                <div className="space-y-3">
+                  <h2 className="text-3xl font-bold text-slate-800">Document Viewer</h2>
+                  <p className="text-slate-600 text-lg max-w-md leading-relaxed">
+                    Ask about company policies or upload a document to begin your AI-powered HR assistance.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Chat Panel */}
+        <div className="flex-1 flex flex-col bg-white shadow-2xl border-l border-slate-200">
+          {/* Chat Messages */}
+          <div className="flex-1 overflow-y-auto p-8" ref={chatContainerRef}>
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div className="text-red-800 font-medium">{error}</div>
+              </div>
+            )}
+
+            {currentChat.history.map((item, index) => (
+              <ChatBubble
+                key={index}
+                item={item}
+                isSelected={currentChat.selectedQuestionIndex === index}
+                onClick={item.type === 'question' ? () => handleHistoryClick(index) : undefined}
+              />
+            ))}
+
+            {isLoading && <LoadingBubble />}
+
+            {!isLoading && (
+              <FaqSection
+                onQuestionClick={handleFaqClick}
+                questions={isCustomMode ? customChat.faqs || [] : staticFaqs}
+                title={
+                  isCustomMode
+                    ? "Questions about your Document"
+                    : "Frequently Asked Questions"
+                }
+              />
+            )}
+          </div>
+
+          {/* Input Area */}
+          <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-t border-slate-200">
+            <form onSubmit={handleSubmit} className="flex items-end gap-4">
+              <div className="flex-1 relative">
                 <textarea
-                  id="question-input"
-                  ref={textareaRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onInput={handleAutoResize}
-                  placeholder="e.g., How do I apply for leave?"
-                  style={styles.textarea}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
+                  placeholder={
+                    isCustomMode
+                      ? `Ask about ${currentChat.pdfFileName}...`
+                      : "Ask about company policies..."
+                  }
+                  className="w-full p-4 pr-12 text-slate-800 bg-white rounded-2xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none shadow-sm transition-all duration-300 placeholder-slate-500"
                   disabled={isLoading}
                   rows={1}
                 />
-                <button type="submit" style={buttonStyle} disabled={isLoading}>{isLoading ? <Spinner /> : null}{isLoading ? 'Asking...' : 'Ask AI'}</button>
               </div>
-            </div>
-            
-            <div style={styles.fileInputContainer}>
-              <label style={styles.fileInputLabel} htmlFor="file-upload">
-                {uploadStatus === 'uploading' ? 'Processing...' : 'Upload a custom document (optional)'}
-              </label>
-              <input id="file-upload" type="file" accept=".pdf" onChange={handleFileChange} style={{ display: 'none' }} disabled={uploadStatus === 'uploading'} ref={fileInputRef} />
-            </div>
-            {uploadStatus !== 'idle' && (
-                <div style={styles.uploadStatusContainer}>
-                    {uploadStatus === 'success' && <p style={{...styles.uploadStatus, color: 'green'}}>✅ Document "{file.name}" is ready.</p>}
-                    {uploadStatus === 'error' && <p style={{...styles.uploadStatus, color: 'red'}}>❌ {error || 'File processing failed.'}</p>}
-                    <button type="button" onClick={handleReset} style={styles.clearButton}>Clear</button>
-                </div>
-            )}
-          </form>
-        </div>
 
-        <FaqSection onQuestionClick={handleFaqClick} />
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileChange}
+                ref={fileInputRef}
+                className="hidden"
+                disabled={isLoading}
+              />
 
-        <div style={styles.resultsSection}>
-          {isLoading && !answer && <div style={{paddingTop:'2rem'}}><div style={{...styles.spinner, margin:'auto', width:'3rem', height:'3rem'}}></div></div>}
-          {error && <div style={styles.errorBox}>{error}</div>}
-          
-          {answer && (
-            <div style={styles.answerCard}>
-              <h2 style={styles.answerCardH2}><svg style={{...styles.inputLabelIcon, color: '#2c3e50'}} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Answer</h2>
-              <FormattedAnswer text={answer} />
-              <SourcesAccordion sources={sources} uploadedFileName={file ? file.name : null} />
-            </div>
-          )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="p-4 bg-white hover:bg-slate-50 border border-slate-300 hover:border-indigo-300 rounded-2xl transition-all duration-300 hover:scale-105 shadow-sm group"
+                title="Upload custom PDF to start a new chat"
+              >
+                <FileUp className="w-5 h-5 text-slate-600 group-hover:text-indigo-600 transition-colors" />
+              </button>
+
+              <button
+                type="submit"
+                disabled={isLoading || !query.trim()}
+                className="p-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400 text-white rounded-2xl transition-all duration-300 hover:scale-105 shadow-lg disabled:shadow-none disabled:scale-100"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

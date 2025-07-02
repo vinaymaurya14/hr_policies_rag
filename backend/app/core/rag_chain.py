@@ -70,8 +70,36 @@ def create_rag_chain(retriever):
     )
     return rag_chain
 
+def create_faq_chain():
+    """Creates a LangChain chain to generate FAQs from a given text."""
+    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.3)
+    
+    prompt_template = """
+    Based on the following content from a document, generate exactly 4 concise and relevant questions that a user is likely to ask.
+    Your response MUST be a valid JSON array of strings. Do not include any other text or formatting.
+
+    For example:
+    ["What is the policy on remote work?", "How do I apply for maternity leave?"]
+
+    DOCUMENT CONTENT:
+    {context}
+
+    JSON ARRAY OF QUESTIONS:
+    """
+    
+    prompt = PromptTemplate(template=prompt_template, input_variables=["context"])
+    
+    faq_chain = (
+        prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    return faq_chain
+
+
 # --- File & Index Helpers ---
-async def create_retriever_from_file(file: UploadFile):
+async def create_retriever_from_file(file: UploadFile, return_context: bool = False):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             content = await file.read()
@@ -79,14 +107,24 @@ async def create_retriever_from_file(file: UploadFile):
             loader = PyPDFLoader(tmp_file.name)
             documents = loader.load()
         os.remove(tmp_file.name)
+        
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=150)
         chunked_docs = text_splitter.split_documents(documents)
+        
         embeddings = OpenAIEmbeddings()
         db = FAISS.from_documents(chunked_docs, embeddings)
-        return ScoreAttachingRetriever(vectorstore=db)
+        retriever = ScoreAttachingRetriever(vectorstore=db)
+
+        if not return_context:
+            return retriever
+        
+        # Combine text from the first few documents for FAQ context
+        context_text = " ".join([doc.page_content for doc in documents[:3]])
+        return retriever, context_text
+
     except Exception as e:
         print(f"Error processing uploaded file: {e}")
-        return None
+        return (None, None) if return_context else None
 
 def get_preloaded_retriever():
     if not os.path.exists(INDEX_PATH):
